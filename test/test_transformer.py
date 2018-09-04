@@ -1,22 +1,88 @@
+from test.asserts import assert_eq
+
 from sutra.transformer import *
+
+NO_DROPOUT = nn.Dropout(0.0)
+ALL_DROPOUT = nn.Dropout(1.0)
+
+
+def test_scaled_dot_attention_dropout():
+    size = 5
+
+    query = torch.rand((size, size))
+    key = torch.rand((size, size))
+    value = torch.rand((size, size))
+    attn, potential = scaled_dot_attention(query, key, value, ALL_DROPOUT)
+
+    assert_eq(potential, torch.zeros((size, size)))
+    assert_eq(attn, torch.zeros((size, size)))
+
+
+def test_scaled_dot_attention_potentials():
+    size = 5
+
+    query = torch.rand((size, size))
+    key = torch.rand((size, size))
+    value = torch.rand((size, size))
+    attn, potential = scaled_dot_attention(query, key, value, NO_DROPOUT)
+
+    # Potentials are multiplied by value to get attention
+    assert_eq(attn, torch.matmul(potential, value))
+
+    # Attention distribution columns sum to one
+    assert_eq(torch.sum(potential, dim=-1), torch.ones(size))
+
+
+def test_scaled_dot_attention_identity():
+    query = torch.eye(4)
+    key = torch.eye(4)
+    value = torch.eye(4)
+
+    attn, potential = scaled_dot_attention(query, key, value, NO_DROPOUT)
+
+    expected = F.softmax(0.5 * torch.eye(4), dim=1)
+    assert_eq(potential, expected)
+    assert_eq(attn, expected)
 
 
 def test_scaled_dot_attention():
-    attn = MultiHeadedAttention.scaled_dot_attention
+    dim = (10, 5, 4, 4)
+    query = torch.rand(dim)
+    key = torch.rand(dim)
+    value = torch.rand(dim)
 
+    attn, potential = scaled_dot_attention(query, key, value, NO_DROPOUT)
+    assert attn.size() == potential.size() == dim
+
+
+def test_multi_headed_attention():
+
+    def attn_fn(query, key, value, dropout_fn=None):
+        return query + key + value, query
+
+
+    input_size = 3
     batch_size = 2
-    num_heads = 3
-    head_size = 2
     seq_length = 4
-    dim = (2, 3, 2, 4)
+    dim = (batch_size, seq_length, input_size)
 
-    query = torch.zeros(dim)
-    key = torch.zeros(dim)
-    value = torch.zeros(dim)
+    multi_head_attn = MultiHeadedAttention(input_size=input_size,
+                                           num_heads=1,
+                                           attention_fn=attn_fn,
+                                           dropout_ratio=0.0)
 
-    attn, potential = attn(query, key, value)
-    assert attn.size() == dim
+    query = torch.rand(*dim)
+    key = torch.rand(*dim)
+    value = torch.rand(*dim)
 
+    encodings = multi_head_attn.forward(query, key, value)
+
+    assert encodings.size() == dim
+    assert_eq(encodings,
+              multi_head_attn.output_projection(
+                  multi_head_attn.input_projections[0](query) +
+                  multi_head_attn.input_projections[1](key) +
+                  multi_head_attn.input_projections[2](value)))
 
 def test_encoder():
     encoder = create_encoder(vocab_size=100,

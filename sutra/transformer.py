@@ -8,6 +8,9 @@ import torch.nn.functional as F
 
 
 class Encoder(nn.Module):
+    """Transformer encoder, containing several stacks of encoding
+    layers"""
+
     def __init__(self, encoding_size, embedding, encoder_layer, num_layers):
         super(Encoder, self).__init__()
         self.encoding_size = encoding_size
@@ -23,6 +26,9 @@ class Encoder(nn.Module):
 
 
 class EncoderLayer(nn.Module):
+    """A single encoding layer, containing multi-headed attention and feed
+    forward layers"""
+
     def __init__(self, size, self_attn, feed_forward, dropout_ratio):
         super(EncoderLayer, self).__init__()
 
@@ -48,6 +54,8 @@ class EncoderLayer(nn.Module):
 
 
 class FeedForward(nn.Module):
+    """Sublayer containing two fully connected feed forward networks"""
+
     def __init__(self, input_size, inner_size, dropout_ratio=0.1):
         super(FeedForward, self).__init__()
         self.w_1 = nn.Linear(input_size, inner_size)
@@ -59,6 +67,8 @@ class FeedForward(nn.Module):
 
 
 class MultiHeadedAttention(nn.Module):
+    """Sublayer containing self attention network"""
+
     def __init__(self, input_size, num_heads, attention_fn, dropout_ratio=0.1):
         super(MultiHeadedAttention, self).__init__()
         assert input_size % num_heads == 0
@@ -67,8 +77,7 @@ class MultiHeadedAttention(nn.Module):
         self.num_heads = num_heads
         self.attention_fn = attention_fn
 
-        projection = nn.Linear(input_size, input_size)
-        self.input_projections = [projection for _ in range(num_heads)]
+        self.input_projections = [nn.Linear(input_size, input_size) for _ in range(num_heads*3)]
         self.output_projection = nn.Linear(input_size, input_size)
 
         self.dropout_fn = nn.Dropout(p=dropout_ratio)
@@ -78,38 +87,25 @@ class MultiHeadedAttention(nn.Module):
         head_dim = (batch_size, -1, self.num_heads, self.head_size)
         multi_head_dim = (batch_size, -1, self.num_heads * self.head_size)
 
-        print(query.size())
-        print(key.size())
-        print(value.size())
-
-        query, key, value = self.input_projection(query, key, value, head_dim)
+        query, key, value = self.project_input(query, key, value, head_dim)
         attn, _ = self.attention_fn(query, key, value, dropout_fn=self.dropout_fn)
-        multi_attn = self.concatenate(attn, multi_head_dim)
-        print(attn.size())
-        print(multi_attn.size())
-        return self.output_projection(multi_attn)
+        output = self.project_output(attn, multi_head_dim)
+        return output
 
-    @classmethod
-    def scaled_dot_attention(cls, query, key, value, dropout_fn=None):
-        scaling_factor = math.sqrt(query.size(-1))
-        scores = torch.matmul(query, key.transpose(-2, -1)) / scaling_factor
-        p_attn = F.softmax(scores, dim=-1)
-        if dropout_fn is not None:
-            p_attn = dropout_fn(p_attn)
-        return torch.matmul(p_attn, value), p_attn
-
-    def input_projection(self, query, key, value, dim):
+    def project_input(self, query, key, value, dim):
         return (
             self.input_projections[0](query).view(*dim),
             self.input_projections[1](key).view(*dim),
             self.input_projections[2](value).view(*dim)
         )
 
-    def concatenate(self, x, dim):
-        return x.contiguous().view(*dim)
+    def project_output(self, data, dim):
+        return self.output_projection(data.contiguous().view(*dim))
 
 
 class Embeddings(nn.Module):
+    """Token embedding layer"""
+
     def __init__(self, embedding_size, vocab_size):
         super(Embeddings, self).__init__()
         self.vocab_size = vocab_size
@@ -121,6 +117,8 @@ class Embeddings(nn.Module):
 
 
 class PositionalEncoding(nn.Module):
+    """Positional encoding layer"""
+
     def __init__(self, embedding, dropout_ratio, max_len=5000):
         super(PositionalEncoding, self).__init__()
         self.embedding = embedding
@@ -131,9 +129,17 @@ class PositionalEncoding(nn.Module):
 
     def forward(self, x):
         emb = self.embedding(x)
-        pos = self.position_encoding[:x.size(1), :]
-        x = emb + pos
+        #pos = self.position_encoding[:x.size(1), :]
+        x = emb# + pos
         return self.dropout(x)
+
+
+def scaled_dot_attention(query, key, value, dropout_fn):
+    scaling_factor = math.sqrt(query.size(-1))
+    scores = torch.matmul(query, key.transpose(-2, -1)) / scaling_factor
+    p_attn = F.softmax(scores, dim=-1)
+    p_attn = dropout_fn(p_attn)
+    return torch.matmul(p_attn, value), p_attn
 
 
 def create_encoder(vocab_size,
@@ -142,12 +148,13 @@ def create_encoder(vocab_size,
                    encoding_size,
                    feed_forward_size,
                    num_attention_heads,
-                   dropout_ratio):
+                   dropout_ratio,
+                   initialize=True):
     assert embedding_size == encoding_size # Haven't really thought this through
 
     attn = MultiHeadedAttention(encoding_size,
                                 num_attention_heads,
-                                MultiHeadedAttention.scaled_dot_attention,
+                                scaled_dot_attention,
                                 dropout_ratio)
     ff = FeedForward(encoding_size, feed_forward_size, dropout_ratio)
 
@@ -157,8 +164,9 @@ def create_encoder(vocab_size,
     encoder_layer = EncoderLayer(encoding_size, attn, ff, dropout_ratio)
     encoder = Encoder(encoding_size, pos, encoder_layer, num_layers)
 
-    for p in encoder.parameters():
-        if p.dim() > 1:
-            nn.init.xavier_uniform_(p)
+    if initialize:
+        for p in encoder.parameters():
+            if p.dim() > 1:
+                nn.init.xavier_uniform_(p)
 
     return encoder
