@@ -77,7 +77,7 @@ class MultiHeadedAttention(nn.Module):
         self.num_heads = num_heads
         self.attention_fn = attention_fn
 
-        self.input_projections = [nn.Linear(input_size, input_size) for _ in range(num_heads*3)]
+        self.input_projections = nn.ModuleList([nn.Linear(input_size, input_size) for _ in range(num_heads*3)])
         self.output_projection = nn.Linear(input_size, input_size)
 
         self.dropout_fn = nn.Dropout(p=dropout_ratio)
@@ -128,6 +128,7 @@ class PositionalEncoding(nn.Module):
         self.dropout = nn.Dropout(dropout_ratio)
 
     def forward(self, x):
+        # TODO: Implement this
         emb = self.embedding(x)
         #pos = self.position_encoding[:x.size(1), :]
         x = emb# + pos
