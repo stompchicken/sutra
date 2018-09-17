@@ -50,11 +50,17 @@ class Dataset(object):
 
         self.mapped_tokens = np.array([self.vocab.term_to_index(token) for token in self.tokens])
 
+    def ngrams(self, seq_length):
+        size = len(self.mapped_tokens) - (seq_length - 1)
+        return np.array([self.mapped_tokens[i:i+seq_length] for i in range(0, size)])
+
     def batched_iterator(self, seq_length, batch_size):
-        size = len(self.mapped_tokens) - seq_length + 1
-        splits = np.arange(batch_size, size, batch_size)
-        ngrams = np.array([self.mapped_tokens[i:i+seq_length] for i in range(0, size)])
-        return np.array_split(ngrams, splits)
+        ngrams = self.ngrams(seq_length)
+        num_batches = len(ngrams) // batch_size
+        if num_batches == 0:
+            return []
+        else:
+            return np.split(ngrams[:num_batches*batch_size], num_batches)
 
     def tokenize(self, text):
         return text.split()

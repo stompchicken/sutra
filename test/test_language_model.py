@@ -19,16 +19,20 @@ def test_dataset():
     assert dataset.vocab.term_to_index('sentence') == 0
     assert dataset.vocab.term_to_index('OOV') == 0
 
-    assert_eq(dataset.mapped_tokens, np.array([0, 1, 2, 3, 0, 1, 2, 3]))
+    assert_eq(dataset.mapped_tokens, [0, 1, 2, 3, 0, 1, 2, 3])
 
     batches = dataset.batched_iterator(3, 6)
-    assert_eq(batches[0], [[0, 1, 2], [1, 2, 3], [2, 3, 0], [3, 0, 1], [0, 1, 2], [1, 2, 3]])
+    assert len(batches) == 1
+    assert_eq(batches[0], [[0, 1, 2], [1, 2, 3], [2, 3, 0],
+                           [3, 0, 1], [0, 1, 2], [1, 2, 3]])
 
     batches = dataset.batched_iterator(3, 2)
+    assert len(batches) == 3
     assert_eq(batches[0], [[0, 1, 2], [1, 2, 3]])
     assert_eq(batches[1], [[2, 3, 0], [3, 0, 1]])
     assert_eq(batches[2], [[0, 1, 2], [1, 2, 3]])
 
     batches = dataset.batched_iterator(4, 3)
+    assert len(batches) == 1
     assert_eq(batches[0], [[0, 1, 2, 3], [1, 2, 3, 0], [2, 3, 0, 1]])
-    assert_eq(batches[1], [[3, 0, 1, 2], [0, 1, 2, 3]])
+    #assert_eq(batches[1], [[3, 0, 1, 2], [0, 1, 2, 3]])
