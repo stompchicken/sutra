@@ -1,38 +1,43 @@
-import os
-import tempfile
+import torch
 
-from sutra.language_model import *
+from sutra.data import Corpus, Document, Vocab
+from sutra.language_model import LanguageModellingDataset
 from test.asserts import assert_eq
 
+
 def test_dataset():
-    tmpdir = tempfile.mkdtemp()
-    path = os.path.join(tmpdir, 'test_corpus.txt')
-    with open(path, 'w', encoding='utf8') as f:
-        f.write("This is a test sentence is a test")
+    dataset = LanguageModellingDataset(3)
+    dataset.add_tokens(range(10))
 
-    dataset = Dataset(path, vocab_size=4)
+    assert len(dataset) == 4
+    assert_eq(dataset[0], [0, 1, 2])
+    assert_eq(dataset[1], [3, 4, 5])
+    assert_eq(dataset[2], [6, 7, 8])
+    assert_eq(dataset[3], [9])
 
-    assert dataset.vocab.term_to_index('This') == 0
-    assert dataset.vocab.term_to_index('is') == 1
-    assert dataset.vocab.term_to_index('a') == 2
-    assert dataset.vocab.term_to_index('test') == 3
-    assert dataset.vocab.term_to_index('sentence') == 0
-    assert dataset.vocab.term_to_index('OOV') == 0
 
-    assert_eq(dataset.mapped_tokens, [0, 1, 2, 3, 0, 1, 2, 3])
+def test_dataset_from_corpus():
+    tokens = 'We broke our backs lifing Moloch to heaven'.split()
 
-    batches = dataset.batched_iterator(3, 6)
-    assert len(batches) == 1
-    assert_eq(batches[0], [[0, 1, 2], [1, 2, 3], [2, 3, 0],
-                           [3, 0, 1], [0, 1, 2], [1, 2, 3]])
+    corpus = Corpus()
+    corpus.add_document(Document(tokens=tokens))
 
-    batches = dataset.batched_iterator(3, 2)
-    assert len(batches) == 3
-    assert_eq(batches[0], [[0, 1, 2], [1, 2, 3]])
-    assert_eq(batches[1], [[2, 3, 0], [3, 0, 1]])
-    assert_eq(batches[2], [[0, 1, 2], [1, 2, 3]])
+    vocab = Vocab()
+    for token in tokens:
+        vocab.add_term(token)
 
-    batches = dataset.batched_iterator(4, 3)
-    assert len(batches) == 1
-    assert_eq(batches[0], [[0, 1, 2, 3], [1, 2, 3, 0], [2, 3, 0, 1]])
-    #assert_eq(batches[1], [[3, 0, 1, 2], [0, 1, 2, 3]])
+    dataset = LanguageModellingDataset.create_from_corpus(corpus, vocab, 4)
+    assert len(dataset) == 2
+    assert_eq(dataset[0], [1, 2, 3, 4])
+    assert_eq(dataset[1], [5, 6, 7, 8])
+
+
+def test_dataset_batching():
+    dataset = LanguageModellingDataset(3)
+    dataset.add_tokens(range(10))
+    dataloader = torch.utils.data.DataLoader(dataset, batch_size=3)
+
+    it = dataloader.__iter__()
+    print(next(it))
+    print(next(it))
+    assert False

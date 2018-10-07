@@ -1,78 +1,158 @@
+import math
+import time
 import logging
-from collections import Counter, deque
 
-import numpy as np
+import torch
+import torch.nn as nn
+import torch.optim as optim
 
+import torchtext
+
+from utils import Metric
+
+import rnn_lm
 
 logger = logging.getLogger(__name__)
 
-
-class VocabBuilder(object):
-
-    def __init__(self):
-        self.vocab = Counter()
-
-    def add_term(self, term):
-        self.vocab[term] += 1
-
-    def get_terms(self, size):
-        return [x[0] for x in self.vocab.most_common()[:size]]
+logger = logging.getLogger()
+handler = logging.StreamHandler()
+formatter = logging.Formatter(
+    '[%(asctime)s] %(name)-20s %(levelname)-8s %(message)s')
+handler.setFormatter(formatter)
+logger.addHandler(handler)
+logger.setLevel(logging.DEBUG)
 
 
-class Vocab(object):
+def load_wikitext2(batch_size, seq_length, vocab_size):
+    TEXT = torchtext.data.Field(lower=True, batch_first=True)
 
-    def __init__(self, vocab_builder, size):
-        logger.info('Building vocab: %d terms (from %d)' % (size, len(vocab_builder.vocab)))
-        self.size = size
-        self.tokens = ['__UNK__']
-        self.tokens += vocab_builder.get_terms(size-1)
-        self.token_index = {term: i for (i, term) in enumerate(self.tokens)}
+    # make splits for data
+    train, valid, test = torchtext.datasets.WikiText2.splits(TEXT)
 
-        last_term = self.tokens[-1]
-        logging.info('Cutting off terms less than freq %d' % vocab_builder.vocab[last_term])
+    logger.info("Train: %d tokens" % len(train[0].text))
+    logger.info("Valid: %d tokens" % len(valid[0].text))
+    logger.info("Test:  %d tokens" % len(test[0].text))
 
-    def term_to_index(self, term):
-        return self.token_index.get(term, 0)
+    # build the vocabulary
+    TEXT.build_vocab(train, max_size=vocab_size - 2)
+    logger.info("Vocab: %d terms" % len(TEXT.vocab))
 
-    def index_to_term(self, index):
-        return self.tokens[index]
-
-
-class Dataset(object):
-
-    def __init__(self, tokens, vocab):
-        self.vocab = vocab
-        self.tokens = np.array([self.vocab.term_to_index(token) for token in tokens])
-
-    def ngrams(self, seq_length):
-        size = len(self.tokens) - (seq_length - 1)
-        return np.array([self.tokens[i:i+seq_length] for i in range(0, size)])
-
-    def batched_iterator(self, seq_length, batch_size):
-        ngrams = self.ngrams(seq_length)
-        num_batches = len(ngrams) // batch_size
-        if num_batches == 0:
-            return []
-        else:
-            return np.split(ngrams[:num_batches*batch_size], num_batches)
+    # make iterator for splits
+    return torchtext.data.BPTTIterator.splits(
+        (train, valid, test),
+        batch_size=batch_size,
+        bptt_len=seq_length,
+        device='cuda')
 
 
-def tokenize(text):
-    return text.split()
+def train(config, device):
+    logging.info("Device: %s" % device)
+    logging.info("Config: %s" % str(config))
+
+    train_iter, valid_iter, test_iter = load_wikitext2(
+        config.batch_size, config.seq_length, config.vocab_size)
+
+    model = rnn_lm.RNNLanguageModel(vocab_size=config.vocab_size,
+                                    embedding_size=config.embedding_size,
+                                    encoding_size=config.encoding_size,
+                                    num_layers=2,
+                                    dropout_prob=config.dropout_prob,
+                                    device=device)
+
+    def evaluate(dataset):
+        model.eval()
+        hidden = model.init_hidden(config.batch_size)
+        cross_entropy = nn.CrossEntropyLoss()
+        metrics = {
+            'cross_entropy': Metric('cross_entropy'),
+            'perplexity': Metric('perplexity')
+        }
+
+        for batch in dataset:
+            hidden = rnn_lm.repackage_hidden(hidden)
+            output, hidden = model(batch.text, hidden)
+
+            # Reshape into flat tensors
+            predictions = output.view(-1, config.vocab_size)
+            targets = batch.target.view(-1)
+
+            loss = cross_entropy(predictions, targets)
+
+            metrics['cross_entropy'].update(loss.item())
+            metrics['perplexity'].update(math.exp(loss.item()))
+
+        return metrics
+
+    def train(dataset, optimizer, criterion):
+        model.train()
+        hidden = model.init_hidden(config.batch_size)
+        loss_estimate = Metric('loss')
+        perplexity = Metric('ppl')
+        tokens_per_second = Metric('tokens/s')
+
+        epoch = dataset.epoch
+        for batch in dataset:
+            if dataset.epoch > epoch:
+                break
+
+            start = time.time()
+
+            hidden = rnn_lm.repackage_hidden(hidden)
+            optimizer.zero_grad()
+
+            output, hidden = model(batch.text, hidden)
+
+            # Reshape into flat tensors
+            predictions = output.view(-1, config.vocab_size)
+            targets = batch.target.view(-1)
+
+            loss = criterion(predictions, targets)
+            loss.backward()
+
+            loss_estimate.update(loss.item())
+            perplexity.update(math.exp(loss.item()))
+
+            grad_clip = 5.0
+            torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
+
+            optimizer.step()
+
+            end = time.time()
+            tokens_per_second.update(
+                float(config.batch_size * config.seq_length) / (end-start))
+
+            if dataset.iterations % 100 == 0:
+                logger.debug('Training [%d.%d]: %s %s %s' %
+                             (dataset.epoch, dataset.iterations,
+                              loss_estimate, perplexity, tokens_per_second))
+
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(model.parameters(), lr=0.001)
+
+    for i in range(40):
+        logger.info('Epoch: %d' % i)
+        train(train_iter, optimizer, criterion)
+        metrics = evaluate(valid_iter)
+        logger.info('Validation: %s' % ', '.join(
+            [str(m) for m in metrics.values()]))
+
+        torch.save(model.state_dict(), 'rmm_lm_%d.model' % i)
+
+    metrics = evaluate(test_iter)
+    logger.info('Test: %s' % ', '.join([str(m) for m in metrics.values()]))
 
 
-def create_dataset(path, vocab):
-    tokens = []
-    with open(path, 'r', encoding='utf8') as f:
-        tokens.extend(tokenize(f.read()))
-    dataset = Dataset(tokens, vocab)
-    return dataset
+def main():
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    config = rnn_lm.RNNLanguageModelConfig(
+        vocab_size=30000,
+        batch_size=32,
+        seq_length=35,
+        embedding_size=650,
+        encoding_size=650,
+        dropout_prob=0.5)
+    train(config, device)
 
 
-def create_vocab(path, vocab_size):
-    vocab_builder = VocabBuilder()
-    with open(path, 'r', encoding='utf8') as f:
-        for token in tokenize(f.read()):
-            vocab_builder.add_term(token)
-
-    return Vocab(vocab_builder, vocab_size)
+if __name__ == '__main__':
+    main()

@@ -13,7 +13,7 @@ class TransformerLanguageModel(nn.Module):
         super(TransformerLanguageModel, self).__init__()
 
         self.encoder = create_encoder(vocab_size=vocab_size,
-                                      num_layers=2,
+                                      num_layers=1,
                                       embedding_size=64,
                                       encoding_size=64,
                                       feed_forward_size=256,
@@ -63,8 +63,10 @@ def main():
 
     loss_estimate = Metric('loss')
 
-    for epoch in range(3):
-        for i, batch in enumerate(dataset.batched_iterator(seq_length=50, batch_size=128)):
+    print('%d ngrams in dataset' % len(dataset.mapped_tokens))
+
+    for epoch in range(10):
+        for i, batch in enumerate(dataset.batched_iterator(seq_length=20, batch_size=64)):
             context = torch.from_numpy(batch[:, :-2]).to(device)
             token = torch.from_numpy(batch[:, -1]).to(device)
 
@@ -77,7 +79,6 @@ def main():
             loss_estimate.update(loss.item())
             loss.backward()
             optimizer.step()
-
 
         print('[%d] %s' % (epoch, loss_estimate))
 
