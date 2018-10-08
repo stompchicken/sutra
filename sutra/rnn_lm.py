@@ -73,6 +73,10 @@ class RNNLanguageModel(nn.Module):
                                   dropout_prob=dropout_prob,
                                   device=device)
         self.decoder = nn.Linear(encoding_size, vocab_size).to(device)
+
+        if embedding_size == encoding_size:
+            self.decoder.weight = self.encoder.embedding.weight
+
         self.init_weights()
 
     def init_weights(self):

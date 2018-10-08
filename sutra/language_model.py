@@ -8,7 +8,7 @@ import torch.optim as optim
 
 import torchtext
 
-from utils import Metric
+from utils import Metric, EarlyStopping
 
 import rnn_lm
 
@@ -45,9 +45,10 @@ def load_wikitext2(batch_size, seq_length, vocab_size):
         device='cuda')
 
 
-def train(config, device):
+def train(config, device, max_epochs):
     logging.info("Device: %s" % device)
     logging.info("Config: %s" % str(config))
+    logging.info("Max epochs: %d" % max_epochs)
 
     train_iter, valid_iter, test_iter = load_wikitext2(
         config.batch_size, config.seq_length, config.vocab_size)
@@ -128,15 +129,25 @@ def train(config, device):
 
     criterion = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=0.001)
+    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min',
+                                                     patience=4,
+                                                     verbose=True)
+    early_stopping = EarlyStopping(6)
 
-    for i in range(40):
+    for i in range(max_epochs):
         logger.info('Epoch: %d' % i)
         train(train_iter, optimizer, criterion)
+        torch.save(model.state_dict(), 'rnn_lm.model')
+
         metrics = evaluate(valid_iter)
         logger.info('Validation: %s' % ', '.join(
             [str(m) for m in metrics.values()]))
 
-        torch.save(model.state_dict(), 'rmm_lm_%d.model' % i)
+        scheduler.step(metrics['cross_entropy'].get_estimate())
+        early_stopping.add_value(metrics['cross_entropy'].get_estimate())
+        if early_stopping.should_stop():
+            logging.info("Early stopping")
+            break
 
     metrics = evaluate(test_iter)
     logger.info('Test: %s' % ', '.join([str(m) for m in metrics.values()]))
@@ -146,12 +157,12 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     config = rnn_lm.RNNLanguageModelConfig(
         vocab_size=30000,
-        batch_size=32,
+        batch_size=64,
         seq_length=35,
         embedding_size=650,
         encoding_size=650,
         dropout_prob=0.5)
-    train(config, device)
+    train(config, device, 40)
 
 
 if __name__ == '__main__':
