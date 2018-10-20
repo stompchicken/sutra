@@ -19,6 +19,7 @@ class Encoder(nn.Module):
         self.layer_norm = nn.LayerNorm(encoding_size)
 
     def forward(self, x):
+        import pdb; pdb.set_trace()
         x = self.embedding(x)
         for layer in self.layers:
             x = layer(x)
