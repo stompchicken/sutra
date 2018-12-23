@@ -11,19 +11,16 @@ class Encoder(nn.Module):
     """Transformer encoder, containing several stacks of encoding
     layers"""
 
-    def __init__(self, encoding_size, embedding, encoder_layer, num_layers):
+    def __init__(self, embedding, encoder_layer, num_layers):
         super(Encoder, self).__init__()
-        self.encoding_size = encoding_size
         self.embedding = embedding
         self.layers = nn.ModuleList([copy.deepcopy(encoder_layer) for _ in range(num_layers)])
-        self.layer_norm = nn.LayerNorm(encoding_size)
 
     def forward(self, x):
-        import pdb; pdb.set_trace()
         x = self.embedding(x)
         for layer in self.layers:
             x = layer(x)
-        return self.layer_norm(x)
+        return x
 
 
 class EncoderLayer(nn.Module):
@@ -164,7 +161,7 @@ def create_encoder(vocab_size,
     pos = PositionalEncoding(embedding, dropout_ratio)
 
     encoder_layer = EncoderLayer(encoding_size, attn, ff, dropout_ratio)
-    encoder = Encoder(encoding_size, pos, encoder_layer, num_layers)
+    encoder = Encoder(pos, encoder_layer, num_layers)
 
     if initialize:
         for p in encoder.parameters():

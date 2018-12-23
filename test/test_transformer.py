@@ -1,6 +1,7 @@
+import torch
 from test.asserts import assert_eq
 
-from sutra.transformer import *
+from sutra.model.transformer import *
 
 NO_DROPOUT = nn.Dropout(0.0)
 ALL_DROPOUT = nn.Dropout(1.0)

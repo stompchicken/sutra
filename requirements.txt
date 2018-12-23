@@ -18,7 +18,6 @@ nvidia-ml-py3==7.352.0
 parso==0.3.1
 pexpect==4.6.0
 pickleshare==0.7.4
-pkg-resources==0.0.0
 pluggy==0.7.1
 prompt-toolkit==1.0.15
 psutil==5.4.7

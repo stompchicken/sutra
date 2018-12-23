@@ -7,9 +7,9 @@ import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 
-from transformer import create_encoder
-import utils
-import language_model as lm
+from sutra.transformer import create_encoder
+import sutra.utils as utils
+import sutra.language_model as lm
 
 logger = logging.getLogger(__name__)
 
@@ -54,12 +54,15 @@ def main():
         embedding_size=4,
         encoding_size=4)
 
-    train_iter, valid_iter, test_iter = lm.load_wikitext2(
-        config.batch_size, config.seq_length, config.vocab_size, device)
+    train, valid, test = lm.load_wikitext2(config.vocab_size)
+
+    train_iter, valid_iter, test_iter = lm.iterator(train, valid, test,
+                                                    config.batch_size, device)
 
     model = TransformerLanguageModel(config.vocab_size,
                                      config.embedding_size,
-                                     config.encoding_size, device)
+                                     config.encoding_size,
+                                     device)
 
     model.train()
 

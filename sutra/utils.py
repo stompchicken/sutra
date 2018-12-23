@@ -35,12 +35,13 @@ class Metric(object):
 
 class EarlyStopping(object):
 
-    def __init__(self, patience=1):
+    def __init__(self, metric, patience=1):
+        self.metric = metric
         self.values = []
         self.patience = patience
 
-    def add_value(self, value):
-        self.values.append(value)
+    def update(self, metrics):
+        self.values.append(metrics[self.metric_name])
 
     def should_stop(self):
         if len(self.values) > self.patience + 1:

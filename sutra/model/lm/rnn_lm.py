@@ -9,7 +9,7 @@ import torch.optim as optim
 
 import utils
 import language_model as lm
-
+from trainer import TrainingConfig, Trainer
 
 logger = logging.getLogger(__name__)
 
@@ -122,8 +122,13 @@ def train(config, device, max_epochs):
     logging.info("Config: %s" % str(config))
     logging.info("Max epochs: %d" % max_epochs)
 
-    train_iter, valid_iter, test_iter = lm.load_wikitext2(
-        config.batch_size, config.seq_length, config.vocab_size, device)
+    train, valid, test = lm.load_wikitext2(config.vocab_size)
+
+    train_iter, valid_iter, test_iter = lm.bptt_iterator(
+        train, valid, test,
+        batch_size=config.batch_size,
+        seq_length=config.seq_length,
+        device=device)
 
     model = RNNLanguageModel(vocab_size=config.vocab_size,
                              embedding_size=config.embedding_size,
@@ -225,17 +230,44 @@ def train(config, device, max_epochs):
     logger.info('Test: %s' % ', '.join([str(m) for m in metrics.values()]))
 
 
+def trainer(config, device):
+
+    model = RNNLanguageModel(
+        vocab_size=config.vocab_size,
+        embedding_size=config.embedding_size,
+        encoding_size=config.encoding_size,
+        num_layers=2,
+        dropout_prob=config.dropout_prob,
+        device=device)
+
+    training_config = TrainingConfig(
+        epoch_length=100,
+        max_epochs=1,
+        optimizer=optim.Adam(model.parameters(), lr=0.001))
+    trainer = Trainer(training_config, model)
+
+    train, valid, test = lm.load_wikitext2(config.vocab_size)
+    train_iter, valid_iter, test_iter = lm.bptt_iterator(
+        train, valid, test,
+        batch_size=config.batch_size,
+        seq_length=config.seq_length,
+        device=device)
+
+    trainer.train(train_iter, valid_iter)
+
+
 def main():
     utils.setup_logging()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    logging.info("Device=%s", device)
     config = RNNLanguageModelConfig(
         vocab_size=30000,
         batch_size=64,
-        seq_length=35,
-        embedding_size=650,
-        encoding_size=650,
+        seq_length=50,
+        embedding_size=1024,
+        encoding_size=1024,
         dropout_prob=0.5)
-    train(config, device, 40)
+    trainer(config, device)
 
 
 if __name__ == '__main__':
