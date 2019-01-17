@@ -4,11 +4,11 @@ from numpy.testing import assert_array_equal
 import sutra.data.data as data
 import sutra.data.iterators as iterators
 import sutra.data.datasets as datasets
-import torchtext
 
 
 @pytest.mark.skip(reason="Too slow")
 def test_torchtext_equivalence():
+    import torchtext
     cache = datasets.DatasetCache()
     wikitext = datasets.WikiText2(cache, vocab_size=50000, lowercase=True)
 
