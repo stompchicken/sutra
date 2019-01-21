@@ -75,14 +75,24 @@ class Corpus(object):
         self.documents.append(document)
 
     def create_vocab(self, vocab_size=None, specials=None):
-        vocab_builder = VocabBuilder(specials=specials)
+        self.vocab_builder = VocabBuilder(specials=specials)
         for document in self.documents:
             for token in document.tokens:
-                vocab_builder.add_term(token)
+                self.vocab_builder.add_term(token)
 
-        return Vocab.from_vocab_builder(vocab_builder, vocab_size)
+        documents = len(self.documents)
+        tokens = sum(len(document.tokens) for document in self.documents)
+        unique_tokens = len(self.vocab_builder)
+        logger.info(f"Building vocab from: {documents} documents, {tokens} tokens, {unique_tokens} unique tokens") # noqa
+        vocab = Vocab.from_vocab_builder(self.vocab_builder, vocab_size)
+        logger.info(f"Created vocab with: {len(vocab)} tokens")
+        return vocab
 
 
 class Batch(typing.NamedTuple):
     data: np.array
     target: np.array
+
+    @property
+    def text(self):
+        return self.data

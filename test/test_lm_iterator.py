@@ -6,24 +6,18 @@ import sutra.data.iterators as iterators
 import sutra.data.datasets as datasets
 
 
-@pytest.mark.skip(reason="Too slow")
+@pytest.mark.skip(reason="Too slow! and torchtext dependency")
 def test_torchtext_equivalence():
     import torchtext
     cache = datasets.DatasetCache()
-    wikitext = datasets.WikiText2(cache, vocab_size=50000, lowercase=True)
+    wikitext = datasets.WikiText2(cache,
+                                  vocab_size=50000,
+                                  lowercase=True,
+                                  specials=['<unk>', '<pad>'])
 
     TEXT = torchtext.data.Field(lower=True, batch_first=True)
     train, valid, test = torchtext.datasets.WikiText2.splits(TEXT)
-
-    # text equivalence
-    assert train[0].text == wikitext.train_tokens
-    assert valid[0].text == wikitext.valid_tokens
-    assert test[0].text == wikitext.test_tokens
-
-    # vocab equivalence
-    vocab_size = 50000
-    TEXT.build_vocab(train, max_size=vocab_size - 2)
-    assert train.fields['text'].vocab.itos == wikitext.vocab.terms
+    TEXT.build_vocab(train, max_size=50000)
 
     # data equivalence
     batch_size = 3
@@ -49,15 +43,15 @@ def test_torchtext_equivalence():
                                                pad_last_batch=True)
 
     for batch1, batch2 in zip(train_it, train_it2):
-        assert_array_equal(batch1.text, batch2.data)
+        assert_array_equal(batch1.text, batch2.text)
         assert_array_equal(batch1.target, batch2.target)
 
     for batch1, batch2 in zip(valid_it, valid_it2):
-        assert_array_equal(batch1.text, batch2.data)
+        assert_array_equal(batch1.text, batch2.text)
         assert_array_equal(batch1.target, batch2.target)
 
     for batch1, batch2 in zip(test_it, test_it2):
-        assert_array_equal(batch1.text, batch2.data)
+        assert_array_equal(batch1.text, batch2.text)
         assert_array_equal(batch1.target, batch2.target)
 
 

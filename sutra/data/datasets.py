@@ -19,7 +19,7 @@ class DatasetCache:
 
 class WikiText2:
     name = 'wikitext-2'
-    url = 'https://s3.amazonaws.com/research.metamind.io/wikitext/wikitext-2-v1.zip'
+    url = 'https://s3.amazonaws.com/research.metamind.io/wikitext/wikitext-2-v1.zip' # noqa
 
     @classmethod
     def download(cls, cache):
@@ -29,39 +29,38 @@ class WikiText2:
         z.extractall(cache.cache_dir)
         logging.debug('Extracted {} to {}'.format(cls.name, cache.cache_dir))
 
-    def __init__(self, cache, vocab_size=None, lowercase=False):
+    def __init__(self, cache, vocab_size=None, lowercase=False, specials=None):
         path = pathlib.Path(cache.cache_dir, self.name)
 
         if not cache.dataset_is_cached(self.name):
             self.download(cache)
 
-        self.train_tokens = self.__load_from_tokens_file(
+        train_tokens = self.__load_from_tokens_file(
             pathlib.Path(path, 'wiki.train.tokens'), lowercase)
-        self.valid_tokens = self.__load_from_tokens_file(
+        valid_tokens = self.__load_from_tokens_file(
             pathlib.Path(path, 'wiki.valid.tokens'), lowercase)
-        self.test_tokens = self.__load_from_tokens_file(
+        test_tokens = self.__load_from_tokens_file(
             pathlib.Path(path, 'wiki.test.tokens'), lowercase)
 
-        self.train_corpus = Corpus([Document(self.train_tokens)])
-        self.vocab = self.train_corpus.create_vocab(
-            vocab_size, specials=['<unk>', '<pad>'])
+        train_corpus = Corpus([Document(train_tokens)])
 
-        self.valid_corpus = Corpus([Document(self.valid_tokens)])
-        self.test_corpus = Corpus([Document(self.test_tokens)])
+        specials = specials or []
+        self.vocab = train_corpus.create_vocab(
+            vocab_size, specials=specials)
 
         self.train_data = [
             self.vocab.term_to_index(token)
-            for token in self.train_tokens
+            for token in train_tokens
         ]
 
         self.valid_data = [
             self.vocab.term_to_index(token)
-            for token in self.valid_tokens
+            for token in valid_tokens
         ]
 
         self.test_data = [
             self.vocab.term_to_index(token)
-            for token in self.test_tokens
+            for token in test_tokens
         ]
 
     def __load_from_tokens_file(self, path, lowercase=False):

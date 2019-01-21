@@ -1,15 +1,12 @@
 import logging
 import collections
-import time
 
 import torch
 import torch.nn as nn
-import torch.optim as optim
 import torch.nn.functional as F
 
 from sutra.transformer import create_encoder
-import sutra.utils as utils
-import sutra.language_model as lm
+
 
 logger = logging.getLogger(__name__)
 
@@ -41,57 +38,57 @@ TransformerLanguageModelConfig = collections.namedtuple(
      'embedding_size', 'encoding_size'])
 
 
-def main():
-    utils.setup_logging()
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# def main():
+#     utils.setup_logging()
+#     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-    logging.info("Device: %s" % device)
+#     logging.info("Device: %s" % device)
 
-    config = TransformerLanguageModelConfig(
-        vocab_size=30000,
-        batch_size=2,
-        seq_length=5,
-        embedding_size=4,
-        encoding_size=4)
+#     config = TransformerLanguageModelConfig(
+#         vocab_size=30000,
+#         batch_size=2,
+#         seq_length=5,
+#         embedding_size=4,
+#         encoding_size=4)
 
-    train, valid, test = lm.load_wikitext2(config.vocab_size)
+#     train, valid, test = lm.load_wikitext2(config.vocab_size)
 
-    train_iter, valid_iter, test_iter = lm.iterator(train, valid, test,
-                                                    config.batch_size, device)
+#     train_iter, valid_iter, test_iter = lm.iterator(train, valid, test,
+#                                      config.batch_size, device)
 
-    model = TransformerLanguageModel(config.vocab_size,
-                                     config.embedding_size,
-                                     config.encoding_size,
-                                     device)
+#     model = TransformerLanguageModel(config.vocab_size,
+#                                      config.embedding_size,
+#                                      config.encoding_size,
+#                                      device)
 
-    model.train()
+#     model.train()
 
-    criterion = nn.CrossEntropyLoss()
-    optimizer = optim.Adam(model.parameters(), lr=0.001)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min',
-                                                     patience=4,
-                                                     verbose=True)
-    early_stopping = utils.EarlyStopping(6)
-
-
-    loss_estimate = utils.Metric('loss')
-    perplexity = utils.Metric('ppl')
-    tokens_per_second = utils.Metric('tokens/s')
+#     criterion = nn.CrossEntropyLoss()
+#     optimizer = optim.Adam(model.parameters(), lr=0.001)
+#     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min',
+#                                                      patience=4,
+#                                                      verbose=True)
+#     early_stopping = utils.EarlyStopping(6)
 
 
-    for batch in train_iter:
-
-        import pdb; pdb.set_trace()
-
-        optimizer.zero_grad()
-
-        output = model(batch.text)
-
-        optimizer.step()
+#     loss_estimate = utils.Metric('loss')
+#     perplexity = utils.Metric('ppl')
+#     tokens_per_second = utils.Metric('tokens/s')
 
 
-        break
+#     for batch in train_iter:
+
+#         import pdb; pdb.set_trace()
+
+#         optimizer.zero_grad()
+
+#         output = model(batch.text)
+
+#         optimizer.step()
 
 
-if __name__ == '__main__':
-    main()
+#         break
+
+
+# if __name__ == '__main__':
+#    main()

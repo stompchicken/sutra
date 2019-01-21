@@ -1,4 +1,5 @@
 import logging
+import time
 
 
 def setup_logging():
@@ -9,28 +10,6 @@ def setup_logging():
     handler.setFormatter(formatter)
     logger.addHandler(handler)
     logger.setLevel(logging.DEBUG)
-
-
-class Metric(object):
-
-    def __init__(self, name):
-        self.name = name
-        self.mean = 0.0
-        self.updates = 1
-
-    def update(self, metric):
-        self.mean = self.mean + ((metric - self.mean) / self.updates)
-        self.updates += 1
-
-    def reset(self):
-        self.mean = 0
-        self.updates = 1
-
-    def get_estimate(self):
-        return self.mean
-
-    def __repr__(self):
-        return '%s: %.5f' % (self.name, self.mean)
 
 
 class EarlyStopping(object):
@@ -47,3 +26,13 @@ class EarlyStopping(object):
         if len(self.values) > self.patience + 1:
             v = list(reversed(self.values))
             return min(v[0:self.patience]) >= min(v[self.patience:])
+
+
+class Timer:
+    def __enter__(self):
+        self.start = time.clock()
+        return self
+
+    def __exit__(self, *args):
+        self.end = time.clock()
+        self.duration = self.end - self.start

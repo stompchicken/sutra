@@ -1,10 +1,12 @@
 import torch
 from test.asserts import assert_eq
 
-from sutra.model.transformer import *
+from sutra.model.transformer import scaled_dot_attention
+from sutra.model.transformer import MultiHeadedAttention, create_encoder
 
-NO_DROPOUT = nn.Dropout(0.0)
-ALL_DROPOUT = nn.Dropout(1.0)
+
+NO_DROPOUT = torch.nn.Dropout(0.0)
+ALL_DROPOUT = torch.nn.Dropout(1.0)
 
 
 def test_scaled_dot_attention_dropout():
@@ -41,7 +43,7 @@ def test_scaled_dot_attention_identity():
 
     attn, potential = scaled_dot_attention(query, key, value, NO_DROPOUT)
 
-    expected = F.softmax(0.5 * torch.eye(4), dim=1)
+    expected = torch.nn.functional.softmax(0.5 * torch.eye(4), dim=1)
     assert_eq(potential, expected)
     assert_eq(attn, expected)
 
@@ -60,7 +62,6 @@ def test_multi_headed_attention():
 
     def attn_fn(query, key, value, dropout_fn=None):
         return query + key + value, query
-
 
     input_size = 3
     batch_size = 2
@@ -85,6 +86,7 @@ def test_multi_headed_attention():
                   multi_head_attn.input_projections[1](key) +
                   multi_head_attn.input_projections[2](value)))
 
+
 def test_encoder():
     encoder = create_encoder(vocab_size=100,
                              num_layers=2,
@@ -96,6 +98,6 @@ def test_encoder():
 
     batch_size = 2
     seq_length = 5
-    seq = torch.tensor([[0,1,2,3,4], [5,6,7,8,9]])
+    seq = torch.tensor([[0, 1, 2, 3, 4], [5, 6, 7, 8, 9]])
     encodings = encoder.forward(seq)
     assert encodings.size() == (batch_size, seq_length, 16)

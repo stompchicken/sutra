@@ -14,7 +14,8 @@ class Encoder(nn.Module):
     def __init__(self, embedding, encoder_layer, num_layers):
         super(Encoder, self).__init__()
         self.embedding = embedding
-        self.layers = nn.ModuleList([copy.deepcopy(encoder_layer) for _ in range(num_layers)])
+        self.layers = nn.ModuleList(
+            [copy.deepcopy(encoder_layer) for _ in range(num_layers)])
 
     def forward(self, x):
         x = self.embedding(x)
@@ -37,7 +38,6 @@ class EncoderLayer(nn.Module):
         self.feed_forward = feed_forward
         self.layer_norm2 = nn.LayerNorm(size)
         self.dropout_layer2 = nn.Dropout(dropout_ratio)
-
 
     def forward(self, x):
         attn = self.self_attn(x, x, x)
@@ -75,7 +75,8 @@ class MultiHeadedAttention(nn.Module):
         self.num_heads = num_heads
         self.attention_fn = attention_fn
 
-        self.input_projections = nn.ModuleList([nn.Linear(input_size, input_size) for _ in range(num_heads*3)])
+        self.input_projections = nn.ModuleList(
+            [nn.Linear(input_size, input_size) for _ in range(num_heads*3)])
         self.output_projection = nn.Linear(input_size, input_size)
 
         self.dropout_fn = nn.Dropout(p=dropout_ratio)
@@ -86,7 +87,8 @@ class MultiHeadedAttention(nn.Module):
         multi_head_dim = (batch_size, -1, self.num_heads * self.head_size)
 
         query, key, value = self.project_input(query, key, value, head_dim)
-        attn, _ = self.attention_fn(query, key, value, dropout_fn=self.dropout_fn)
+        attn, _ = self.attention_fn(query, key, value,
+                                    dropout_fn=self.dropout_fn)
         output = self.project_output(attn, multi_head_dim)
         return output
 
@@ -122,14 +124,15 @@ class PositionalEncoding(nn.Module):
         self.embedding = embedding
         self.embedding_size = embedding.embedding_size
 
-        self.position_encoding = auto.Variable(torch.ones(max_len, self.embedding_size))
+        self.position_encoding = auto.Variable(torch.ones(max_len,
+                                                          self.embedding_size))
         self.dropout = nn.Dropout(dropout_ratio)
 
     def forward(self, x):
         # TODO: Implement this
         emb = self.embedding(x)
-        #pos = self.position_encoding[:x.size(1), :]
-        x = emb# + pos
+        # pos = self.position_encoding[:x.size(1), :]
+        x = emb  # + pos
         return self.dropout(x)
 
 
@@ -149,7 +152,8 @@ def create_encoder(vocab_size,
                    num_attention_heads,
                    dropout_ratio,
                    initialize=True):
-    assert embedding_size == encoding_size # Haven't really thought this through
+    # Haven't really thought this through
+    assert embedding_size == encoding_size
 
     attn = MultiHeadedAttention(encoding_size,
                                 num_attention_heads,
