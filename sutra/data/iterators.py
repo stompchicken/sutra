@@ -14,15 +14,21 @@ class LanguageModelIterator:
                  batch_size,
                  seq_length,
                  device='cpu',
-                 partial_batch=False,
+                 allow_partial_batch=False,
                  pad_last_batch=False,
                  repeat=False):
-        """BPTT-style iterator
-        :param partial_batch: Whether to include the final batch, if
-        partial
-        :param pad_last_batch: Whether to pad out final batch. This is
-        for torchtext compatibility
+        """BPTT-style iterator for language model training and evaluation
+        Args:
+            partial_batch: Whether to include the final batch, if it is not batch_size
+            pad_last_batch: Whether to pad out final batch. (This is for torchtext compatibility)
+            repeate: Create 'infinite' iterators that loop forever
         """
+        self.batch_size = batch_size
+        self.seq_length = seq_length
+        self.device = device
+        self.pad_last_batch = pad_last_batch
+        self.allow_partial_batch = allow_partial_batch
+        self.repeat = repeat
 
         data = np.array(dataset)
 
@@ -43,14 +49,9 @@ class LanguageModelIterator:
         data = torch.LongTensor(data)
 
         self.data = data
-        self.batch_size = batch_size
         self.stride = stride
-        self.seq_length = seq_length
-        self.device = device
         self.num_batches = math.ceil(stride / seq_length)
         self.last_batch_is_partial = stride % seq_length != 0
-        self.partial_batch = partial_batch
-        self.repeat = repeat
 
         self.index = 0
 
@@ -66,7 +67,7 @@ class LanguageModelIterator:
         if out_of_bounds:
             raise StopIteration
         elif final_batch:
-            if self.partial_batch:
+            if self.allow_partial_batch:
                 begin = self.seq_length * self.index
                 # End index is one smaller so that all data has a target
                 end = len(self.data) - 1
@@ -84,10 +85,20 @@ class LanguageModelIterator:
 
         self.index += 1
 
-        if self.repeat:
-            reset = self.index >= self.num_batches
-            reset |= self.index == self.num_batches - 1 and not self.partial_batch
-            if reset:
-                self.index = 0
+        if self.repeat and not self.__valid_batch(self.index):
+            self.index = 0
 
         return batch
+
+    def __valid_batch(self, i):
+        if self.index >= self.num_batches:
+            return False
+        elif self.index == self.num_batches - 1:
+            if not self.last_batch_is_partial:
+                return True
+            elif self.allow_partial_batch:
+                return True
+            else:
+                return False
+        else:
+            return True

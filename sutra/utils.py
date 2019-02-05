@@ -14,13 +14,12 @@ def setup_logging():
 
 class EarlyStopping(object):
 
-    def __init__(self, metric, patience=1):
-        self.metric = metric
+    def __init__(self, patience=1):
         self.values = []
         self.patience = patience
 
-    def update(self, metrics):
-        self.values.append(metrics[self.metric_name])
+    def update(self, metric):
+        self.values.append(metric)
 
     def should_stop(self):
         if len(self.values) > self.patience + 1:

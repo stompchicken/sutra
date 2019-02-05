@@ -63,7 +63,7 @@ def assert_lm_iterator(input_data, batch_data, batch_target,
         input_data,
         batch_size=batch_size,
         seq_length=seq_length,
-        partial_batch=False))
+        allow_partial_batch=False))
     assert len(batches) == len(expected) - 1
 
     for i in range(len(batches)):
@@ -74,7 +74,7 @@ def assert_lm_iterator(input_data, batch_data, batch_target,
         input_data,
         batch_size=batch_size,
         seq_length=seq_length,
-        partial_batch=True))
+        allow_partial_batch=True))
     assert len(batches) == len(expected)
 
     for i in range(len(batches)):

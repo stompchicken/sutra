@@ -92,16 +92,16 @@ def main():
     logging.info("Device=%s", device)
     model_config = RNNLanguageModelConfig(
         vocab_size=50000,
-        seq_length=20,
+        seq_length=30,
         num_layers=2,
-        embedding_size=512,
-        encoding_size=512,
+        embedding_size=1024,
+        encoding_size=768,
         dropout_prob=0.5)
 
     training_config = TrainingConfig(
-        epoch_length=2500,
-        max_epochs=20,
-        batch_size=128,
+        epoch_length=1000,
+        max_epochs=50,
+        batch_size=64,
         optimizer=None)
 
     trainer(model_config, training_config, device)
