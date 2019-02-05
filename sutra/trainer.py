@@ -8,6 +8,8 @@ import json
 import pandas as pd
 import torch
 
+from sutra.utils import EarlyStopping
+
 logger = logging.getLogger(__name__)
 
 
@@ -55,6 +57,10 @@ class Trainer:
         self.eval_fn = eval_fn
 
         self.optimizer = optimizer
+        self.lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,
+                                                                       patience=3)
+        self.early_stopping = EarlyStopping(5)
+
         self.epoch_length = config.epoch_length
 
         self.metrics = Metrics()
@@ -118,6 +124,10 @@ class Trainer:
                 logging.info("Reached maximum epochs")
                 break
 
+            if self.early_stopping.should_stop():
+                logging.info("Reached early stopping condition")
+                break
+
             start = time.time()
 
             self.optimizer.zero_grad()
@@ -154,6 +164,16 @@ class Trainer:
         self.print_eval_metrics(epoch)
 
         self.checkpoint()
+
+        df = self.metrics.data
+        df = df[df.epoch == epoch]
+        df = df[df.stage == 'evaluate']
+        if len(df) > 0:
+            avg_loss = sum(df.loss) / len(df)
+
+        self.lr_scheduler.step(avg_loss)
+
+        self.early_stopping.update(avg_loss)
 
     def checkpoint(self):
         self.metrics.save(self.experiment.path)
