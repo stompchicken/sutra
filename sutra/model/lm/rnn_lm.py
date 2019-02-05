@@ -32,6 +32,7 @@ class RNNLanguageModel(torch.nn.Module):
         self.embedding_size = embedding_size
         self.encoding_size = encoding_size
         self.num_layers = num_layers
+        self.dropout_prob = dropout_prob
         self.device = device
 
         self.encoder = RNNEncoder(vocab_size=vocab_size,
@@ -47,6 +48,17 @@ class RNNLanguageModel(torch.nn.Module):
             self.decoder.weight = self.encoder.embedding.weight
 
         self.init_weights()
+
+    def config(self):
+        return {
+            "name": self.__class__.__module__ + '.' + self.__class__.__qualname__,
+            "vocab_size": self.vocab_size,
+            "embedding_size": self.embedding_size,
+            "encoding_size": self.encoding_size,
+            "num_layers": self.num_layers,
+            "dropout_prob": self.dropout_prob,
+            "device": str(self.device)
+        }
 
     def init_weights(self):
         initrange = 0.1

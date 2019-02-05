@@ -2,11 +2,27 @@ import time
 import logging
 import typing
 import math
+import os
+import json
 
 import pandas as pd
 import torch
 
 logger = logging.getLogger(__name__)
+
+
+class Experiment:
+
+    def __init__(self):
+        self.experiment_id = 0
+        for i in range(1000):
+            if not os.path.exists(f"exp/{i}"):
+                self.experiment_id = i
+                break
+
+        logger.info(f"Starting exeriment id={self.experiment_id}")
+        os.makedirs(f'exp/{self.experiment_id}')
+        self.path = f'exp/{self.experiment_id}'
 
 
 class TrainingConfig(typing.NamedTuple):
@@ -24,10 +40,15 @@ class Metrics:
     def append(self, metrics):
         self.data = self.data.append(metrics, ignore_index=True)
 
+    def save(self, path):
+        self.data.to_parquet(os.path.join(path, "metrics.parquet"),
+                             compression=None)
+
 
 class Trainer:
 
     def __init__(self, config, model, train_fn, eval_fn, optimizer):
+        self.experiment = Experiment()
         self.config = config
         self.model = model
         self.train_fn = train_fn
@@ -37,6 +58,13 @@ class Trainer:
         self.epoch_length = config.epoch_length
 
         self.metrics = Metrics()
+
+        config = {
+            "training_config": config._asdict(),
+            "model": model.config()
+        }
+        with open(os.path.join(self.experiment.path, "config"), 'w', encoding='utf8') as f:
+            f.write(json.dumps(config, indent=2))
 
     def epoch(self, iteration):
         return iteration // self.epoch_length
@@ -110,7 +138,6 @@ class Trainer:
 
             if self.end_of_epoch(i):
                 self.evaluate(eval_dataset, self.epoch(i))
-                torch.save(self.model.state_dict(), 'model')
                 self.model.train()
 
     def evaluate(self, eval_dataset, epoch):
@@ -125,3 +152,9 @@ class Trainer:
             self.log_metrics(i, epoch, 'evaluate', end - start, output)
 
         self.print_eval_metrics(epoch)
+
+        self.checkpoint()
+
+    def checkpoint(self):
+        self.metrics.save(self.experiment.path)
+        torch.save(self.model.state_dict(), os.path.join(self.experiment.path, 'model'))

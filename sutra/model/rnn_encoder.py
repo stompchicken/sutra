@@ -12,10 +12,13 @@ class RNNEncoder(nn.Module):
                  dropout_prob,
                  device):
         super(RNNEncoder, self).__init__()
-        self.device = device
+
+        self.vocab_size = vocab_size
         self.embedding_size = embedding_size
         self.encoding_size = encoding_size
         self.num_layers = num_layers
+        self.dropout_prob = dropout_prob
+        self.device = device
 
         self.embedding = nn.Embedding(vocab_size, embedding_size).to(device)
         self.dropout = nn.Dropout(dropout_prob).to(device)
