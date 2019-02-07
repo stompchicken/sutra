@@ -4,13 +4,18 @@ import typing
 import math
 import os
 import json
+import itertools
 
 import pandas as pd
 import torch
 
-from sutra.utils import EarlyStopping
-
 logger = logging.getLogger(__name__)
+
+
+class Stage:
+    TRAINING = 'training'
+    VALIDATION = 'valid'
+    TESTING = 'test'
 
 
 class Experiment:
@@ -34,6 +39,22 @@ class TrainingConfig(typing.NamedTuple):
     optimizer: str
 
 
+class EarlyStopping(object):
+
+    def __init__(self, patience=1):
+        self.values = []
+        self.patience = patience
+
+    def update(self, metric):
+        self.values.append(metric)
+
+    def should_stop(self):
+        if len(self.values) > self.patience + 1:
+            v = list(reversed(self.values))
+            return min(v[0:self.patience]) >= min(v[self.patience:])
+
+
+
 class Metrics:
 
     def __init__(self):
@@ -49,8 +70,9 @@ class Metrics:
 
 class Trainer:
 
-    def __init__(self, config, model, train_fn, eval_fn, optimizer):
-        self.experiment = Experiment()
+    def __init__(self, config, model, train_fn, eval_fn, optimizer,
+                 log_experiment=True):
+
         self.config = config
         self.model = model
         self.train_fn = train_fn
@@ -61,22 +83,23 @@ class Trainer:
                                                                        patience=3)
         self.early_stopping = EarlyStopping(5)
 
-        self.epoch_length = config.epoch_length
+        self.log_experiment = log_experiment
+        if log_experiment:
+            self.experiment = Experiment()
+            saved_config = {
+                "training_config": config._asdict(),
+                "model": model.config()
+            }
+            with open(os.path.join(self.experiment.path, "config"), 'w', encoding='utf8') as f:
+                f.write(json.dumps(saved_config, indent=2))
 
         self.metrics = Metrics()
 
-        config = {
-            "training_config": config._asdict(),
-            "model": model.config()
-        }
-        with open(os.path.join(self.experiment.path, "config"), 'w', encoding='utf8') as f:
-            f.write(json.dumps(config, indent=2))
-
     def epoch(self, iteration):
-        return iteration // self.epoch_length
+        return iteration // self.config.epoch_length
 
     def end_of_epoch(self, iteration):
-        return (iteration + 1) % self.epoch_length == 0
+        return (iteration + 1) % self.config.epoch_length == 0
 
     def log_metrics(self, i, epoch, stage, duration, output):
         metrics = {}
@@ -94,7 +117,7 @@ class Trainer:
             current_epoch = self.epoch(i)
             df = self.metrics.data
 
-            df = df[df.stage == 'train']
+            df = df[df.stage == Stage.TRAINING]
             df = df[df.iteration > i - 100]
             if len(df) > 0:
                 examples_per_second = sum(df.examples) / sum(df.duration)
@@ -106,7 +129,7 @@ class Trainer:
     def print_eval_metrics(self, epoch):
         df = self.metrics.data
         df = df[df.epoch == epoch]
-        df = df[df.stage == 'evaluate']
+        df = df[df.stage == Stage.VALIDATION]
         if len(df) > 0:
             avg_loss = sum(df.loss) / len(df)
             avg_ppl = sum(df.perplexity) / len(df)
@@ -119,14 +142,23 @@ class Trainer:
 
         model_state = self.model.init_state(self.config.batch_size)
 
-        for i, batch in enumerate(train_dataset):
+        train_iter = iter(train_dataset)
+
+        for i in itertools.count():
             if self.epoch(i) > self.config.max_epochs:
-                logging.info("Reached maximum epochs")
+                logging.info("Reached maximum epoch")
                 break
 
             if self.early_stopping.should_stop():
                 logging.info("Reached early stopping condition")
                 break
+
+            try:
+                batch = next(train_iter)
+            except StopIteration:
+                train_iter = iter(train_dataset)
+                batch = next(train_iter)
+                model_state = self.model.init_state(self.config.batch_size)
 
             start = time.time()
 
@@ -143,7 +175,7 @@ class Trainer:
             end = time.time()
 
             epoch = self.epoch(i)
-            self.log_metrics(i, epoch, 'train', end - start, output)
+            self.log_metrics(i, epoch, Stage.TRAINING, end - start, output)
             self.print_training_metrics(i)
 
             if self.end_of_epoch(i):
@@ -159,15 +191,16 @@ class Trainer:
             output, model_state = self.eval_fn(batch, model_state)
             end = time.time()
 
-            self.log_metrics(i, epoch, 'evaluate', end - start, output)
+            self.log_metrics(i, epoch, Stage.VALIDATION, end - start, output)
 
         self.print_eval_metrics(epoch)
 
-        self.checkpoint()
+        if self.log_experiment:
+            self.checkpoint()
 
         df = self.metrics.data
         df = df[df.epoch == epoch]
-        df = df[df.stage == 'evaluate']
+        df = df[df.stage == Stage.VALIDATION]
         if len(df) > 0:
             avg_loss = sum(df.loss) / len(df)
 

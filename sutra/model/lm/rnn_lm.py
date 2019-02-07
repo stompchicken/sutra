@@ -68,6 +68,12 @@ class RNNLanguageModel(torch.nn.Module):
     def init_state(self, batch_size):
         return self.encoder.init_hidden(batch_size)
 
+    def repackage_state(self, state):
+        if isinstance(state, torch.Tensor):
+            return state.detach()
+        else:
+            return tuple(self.repackage_state(v) for v in state)
+
     def forward(self, input, hidden):
         encoding, hidden = self.encoder.forward(input, hidden)
 
@@ -79,3 +85,9 @@ class RNNLanguageModel(torch.nn.Module):
         vocab_size = decoded.size(1)
 
         return decoded.view(seq_length, batch_size, vocab_size), hidden
+
+    def calculate_loss(self, output, target, loss_fn):
+        # Reshape into flat tensors
+        predictions = output.view(-1, self.vocab_size)
+        target = target.view(-1)
+        return loss_fn(predictions, target)

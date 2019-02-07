@@ -1,5 +1,9 @@
+import logging
+
 import torch
 import torch.nn as nn
+
+logger = logging.getLogger(__name__)
 
 
 class RNNEncoder(nn.Module):
@@ -24,8 +28,11 @@ class RNNEncoder(nn.Module):
         self.dropout = nn.Dropout(dropout_prob).to(device)
         self.num_layers = num_layers
 
-        # Dropout is not meaningful for single-later RNNs
+        # Dropout is not meaningful for single-layer RNNs
+        if self.num_layers == 1 and dropout_prob > 0:
+            logger.warning("Non-zero dropout for single-layer RNN will have no effect")
         rnn_dropout_prob = 0.0 if self.num_layers == 1 else dropout_prob
+
         self.rnn = nn.LSTM(self.embedding_size,
                            self.encoding_size,
                            self.num_layers,
@@ -43,8 +50,13 @@ class RNNEncoder(nn.Module):
                 torch.zeros(*size, device=self.device))
 
     def forward(self, input, hidden):
+        seq_len, batch_size = input.size()
+        assert hidden[0].size(1) == batch_size
+
         embeddings = self.embedding(input)
         embeddings = self.dropout(embeddings)
+
         output, hidden = self.rnn(embeddings, hidden)
         output = self.dropout(output)
+
         return output, hidden

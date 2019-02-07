@@ -10,16 +10,6 @@ from sutra.utils import setup_logging
 from sutra.memory import profiler
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
-
-
-def repackage_hidden(h):
-    """Wraps hidden states in new Tensors, to detach them from their
-    history."""
-    if isinstance(h, torch.Tensor):
-        return h.detach()
-    else:
-        return tuple(repackage_hidden(v) for v in h)
 
 
 def trainer(model_config, training_config, device):
@@ -38,34 +28,16 @@ def trainer(model_config, training_config, device):
     cross_entropy = torch.nn.CrossEntropyLoss()
 
     def train_fn(batch, state):
-        hidden = repackage_hidden(state)
+        hidden = model.repackage_state(state)
         output, hidden = model(batch.text.to(device), hidden)
-
-        # Reshape into flat tensors
-        predictions = output.view(-1, model_config.vocab_size)
-        targets = batch.target.view(-1).to(device)
-
-        loss = cross_entropy(predictions, targets)
+        loss = model.calculate_loss(output, batch.target.to(device), cross_entropy)
 
         return {
             "loss": loss
         }, hidden
 
-    def eval_fn(batch, state):
-        hidden = repackage_hidden(state)
-        output, hidden = model(batch.text.to(device), hidden)
-
-        # Reshape into flat tensors
-        predictions = output.view(-1, model_config.vocab_size)
-        targets = batch.target.view(-1).to(device)
-
-        loss = cross_entropy(predictions, targets)
-
-        return {
-            "loss": loss
-        }, hidden
-
-    trainer = Trainer(training_config, model, train_fn, eval_fn, optimizer)
+    trainer = Trainer(training_config, model, train_fn, train_fn, optimizer,
+                      log_experiment=False)
 
     seq_length = model_config.seq_length
 
@@ -74,8 +46,7 @@ def trainer(model_config, training_config, device):
     train_iter = LanguageModelIterator(wikitext.train_data,
                                        training_config.batch_size,
                                        seq_length,
-                                       device,
-                                       repeat=True)
+                                       device)
 
     valid_iter = LanguageModelIterator(wikitext.valid_data,
                                        training_config.batch_size,
@@ -92,10 +63,10 @@ def main():
     logging.info("Device=%s", device)
     model_config = RNNLanguageModelConfig(
         vocab_size=50000,
-        seq_length=30,
-        num_layers=2,
-        embedding_size=1024,
-        encoding_size=768,
+        seq_length=20,
+        num_layers=1,
+        embedding_size=512,
+        encoding_size=512,
         dropout_prob=0.5)
 
     training_config = TrainingConfig(

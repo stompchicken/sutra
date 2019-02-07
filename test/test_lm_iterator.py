@@ -1,4 +1,5 @@
 import pytest
+import itertools
 from numpy.testing import assert_array_equal
 
 import sutra.data.data as data
@@ -157,3 +158,13 @@ def test_lm_iterator():
                        target,
                        batch_size=2,
                        seq_length=4)
+
+
+def test_lm_iterator_repeat():
+    data = list(range(20))
+    it = iterators.LanguageModelIterator(data, 4, 4, repeat=True)
+
+    batches = list(itertools.islice(it, 0, 2))
+    assert len(batches) == 2
+    assert_array_equal(batches[0].data, batches[1].data)
+    assert_array_equal(batches[0].target, batches[1].target)
