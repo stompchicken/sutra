@@ -1,94 +1,81 @@
 import logging
-import collections
+import typing
 
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
-from sutra.transformer import create_encoder
-
+from sutra.model.transformer import create_encoder
 
 logger = logging.getLogger(__name__)
 
 
+class TransformerLanguageModelConfig(typing.NamedTuple):
+    vocab_size: int
+    seq_length: int
+    embedding_size: int
+    encoding_size: int
+    num_attention_heads: int
+    num_layers: int
+    dropout_prob: float
+
+
+# TODO: Better handling of droput config
 class TransformerLanguageModel(nn.Module):
 
-    def __init__(self, vocab_size, embedding_size, encoding_size, device):
+    def __init__(self,
+                 vocab_size,
+                 embedding_size,
+                 encoding_size,
+                 num_attention_heads,
+                 num_layers,
+                 dropout_prob,
+                 device):
         super(TransformerLanguageModel, self).__init__()
 
+        self.vocab_size = vocab_size
+        self.embedding_size = embedding_size
+        self.encoding_size = encoding_size
+        self.num_attention_heads = num_attention_heads
+        self.num_layers = num_layers
+        self.dropout_prob = dropout_prob
+        self.device = device
+
         self.encoder = create_encoder(vocab_size=vocab_size,
-                                      num_layers=1,
+                                      num_layers=num_layers,
                                       embedding_size=embedding_size,
                                       encoding_size=encoding_size,
                                       feed_forward_size=256,
-                                      num_attention_heads=4,
-                                      dropout_ratio=0.1)
+                                      num_attention_heads=num_attention_heads,
+                                      dropout_prob=dropout_prob)
         self.encoder.to(device)
 
-    def forward(self, x):
-        encodings = self.encoder.forward(x)[:, -1]
+        self.decoder = torch.nn.Linear(encoding_size, vocab_size).to(device)
+        self.decoder.weight = self.encoder.embedding.token_embeddings.weight
+
+    def config(self):
+        return {
+            "name": self.__class__.__module__ + '.' + self.__class__.__qualname__,
+            "vocab_size": self.vocab_size,
+            "embedding_size": self.embedding_size,
+            "encoding_size": self.encoding_size,
+            "num_attention_heads": self.num_attention_heads,
+            "device": str(self.device)
+        }
+
+    def init_state(self, batch_size):
+        return None
+
+    def repackage_state(self, state):
+        pass
+
+    def forward(self, data, state):
+        seq_length, batch_size = data.size()
+        # Take encoding of last element in the sequence
+        encodings = self.encoder.forward(data)[-1, :]
         # Tied embeddings
-        embeddings = self.encoder.embedding.embedding.embeddings.weight
-        return F.softmax(torch.matmul(encodings, torch.t(embeddings)), dim=1)
+        decoded = self.decoder(encodings)
 
+        return decoded, state
 
-TransformerLanguageModelConfig = collections.namedtuple(
-    'TransformerLanguageModelConfig',
-    ['vocab_size', 'seq_length', 'batch_size',
-     'embedding_size', 'encoding_size'])
-
-
-# def main():
-#     utils.setup_logging()
-#     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-#     logging.info("Device: %s" % device)
-
-#     config = TransformerLanguageModelConfig(
-#         vocab_size=30000,
-#         batch_size=2,
-#         seq_length=5,
-#         embedding_size=4,
-#         encoding_size=4)
-
-#     train, valid, test = lm.load_wikitext2(config.vocab_size)
-
-#     train_iter, valid_iter, test_iter = lm.iterator(train, valid, test,
-#                                      config.batch_size, device)
-
-#     model = TransformerLanguageModel(config.vocab_size,
-#                                      config.embedding_size,
-#                                      config.encoding_size,
-#                                      device)
-
-#     model.train()
-
-#     criterion = nn.CrossEntropyLoss()
-#     optimizer = optim.Adam(model.parameters(), lr=0.001)
-#     scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'min',
-#                                                      patience=4,
-#                                                      verbose=True)
-#     early_stopping = utils.EarlyStopping(6)
-
-
-#     loss_estimate = utils.Metric('loss')
-#     perplexity = utils.Metric('ppl')
-#     tokens_per_second = utils.Metric('tokens/s')
-
-
-#     for batch in train_iter:
-
-#         import pdb; pdb.set_trace()
-
-#         optimizer.zero_grad()
-
-#         output = model(batch.text)
-
-#         optimizer.step()
-
-
-#         break
-
-
-# if __name__ == '__main__':
-#    main()
+    def calculate_loss(self, output, target, loss_fn):
+        return loss_fn(output, target)

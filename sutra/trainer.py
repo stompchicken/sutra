@@ -54,7 +54,6 @@ class EarlyStopping(object):
             return min(v[0:self.patience]) >= min(v[self.patience:])
 
 
-
 class Metrics:
 
     def __init__(self):
@@ -71,7 +70,7 @@ class Metrics:
 class Trainer:
 
     def __init__(self, config, model, train_fn, eval_fn, optimizer,
-                 log_experiment=True):
+                 log_experiment=False):
 
         self.config = config
         self.model = model
@@ -80,8 +79,9 @@ class Trainer:
 
         self.optimizer = optimizer
         self.lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,
-                                                                       patience=3)
-        self.early_stopping = EarlyStopping(5)
+                                                                       patience=1,
+                                                                       verbose=True)
+        self.early_stopping = EarlyStopping(3)
 
         self.log_experiment = log_experiment
         if log_experiment:
@@ -113,7 +113,7 @@ class Trainer:
         self.metrics.append(metrics)
 
     def print_training_metrics(self, i):
-        if i % 100 == 0 and i > 0:
+        if i % (self.config.epoch_length // 10) == 0 and i > 0:
             current_epoch = self.epoch(i)
             df = self.metrics.data
 
@@ -153,14 +153,14 @@ class Trainer:
                 logging.info("Reached early stopping condition")
                 break
 
+            start = time.time()
+
             try:
                 batch = next(train_iter)
             except StopIteration:
                 train_iter = iter(train_dataset)
                 batch = next(train_iter)
                 model_state = self.model.init_state(self.config.batch_size)
-
-            start = time.time()
 
             self.optimizer.zero_grad()
             self.model.train()
@@ -205,6 +205,7 @@ class Trainer:
             avg_loss = sum(df.loss) / len(df)
 
         self.lr_scheduler.step(avg_loss)
+        logger.info(f"learning_rate={self.optimizer.param_groups[0]['lr']}")
 
         self.early_stopping.update(avg_loss)
 

@@ -3,7 +3,7 @@ import logging
 import torch
 
 from sutra.model.lm.rnn_lm import RNNLanguageModel, RNNLanguageModelConfig
-from sutra.data.iterators import LanguageModelIterator
+from sutra.data.iterators import BatchedLanguageModelIterator
 from sutra.data.datasets import DatasetCache, WikiText2
 from sutra.trainer import Trainer, TrainingConfig
 from sutra.utils import setup_logging
@@ -43,15 +43,15 @@ def trainer(model_config, training_config, device):
 
     cache = DatasetCache()
     wikitext = WikiText2(cache, vocab_size=model_config.vocab_size)
-    train_iter = LanguageModelIterator(wikitext.train_data,
-                                       training_config.batch_size,
-                                       seq_length,
-                                       device)
+    train_iter = BatchedLanguageModelIterator(wikitext.train_data,
+                                              training_config.batch_size,
+                                              seq_length,
+                                              device)
 
-    valid_iter = LanguageModelIterator(wikitext.valid_data,
-                                       training_config.batch_size,
-                                       seq_length,
-                                       device)
+    valid_iter = BatchedLanguageModelIterator(wikitext.valid_data,
+                                              training_config.batch_size,
+                                              seq_length,
+                                              device)
 
     profiler.memory_usage("Before training")
     trainer.train(train_iter, valid_iter)
@@ -62,16 +62,16 @@ def main():
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     logging.info("Device=%s", device)
     model_config = RNNLanguageModelConfig(
-        vocab_size=50000,
-        seq_length=20,
+        vocab_size=35000,
+        seq_length=16,
         num_layers=1,
-        embedding_size=512,
-        encoding_size=512,
-        dropout_prob=0.5)
+        embedding_size=256,
+        encoding_size=256,
+        dropout_prob=0.25)
 
     training_config = TrainingConfig(
-        epoch_length=1000,
-        max_epochs=50,
+        epoch_length=2000,
+        max_epochs=20,
         batch_size=64,
         optimizer=None)
 
