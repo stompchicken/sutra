@@ -22,9 +22,6 @@ def trainer(model_config, training_config, device):
         dropout_prob=model_config.dropout_prob,
         device=device)
 
-    # Hack for now
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
-
     cross_entropy = torch.nn.CrossEntropyLoss()
 
     def train_fn(batch, state):
@@ -36,7 +33,7 @@ def trainer(model_config, training_config, device):
             "loss": loss
         }, hidden
 
-    trainer = Trainer(training_config, model, train_fn, train_fn, optimizer,
+    trainer = Trainer(training_config, model, train_fn, train_fn,
                       log_experiment=False)
 
     seq_length = model_config.seq_length
@@ -73,7 +70,8 @@ def main():
         epoch_length=2000,
         max_epochs=20,
         batch_size=64,
-        optimizer=None)
+        optimizer='adam',
+        learning_rate=0.001)
 
     trainer(model_config, training_config, device)
 

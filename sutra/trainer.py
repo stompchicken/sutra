@@ -37,6 +37,13 @@ class TrainingConfig(typing.NamedTuple):
     max_epochs: int
     batch_size: int
     optimizer: str
+    learning_rate: float
+
+
+def get_optimizer(optimizer_name):
+    return {
+        'adam': torch.optim.Adam
+    }[optimizer_name]
 
 
 class EarlyStopping(object):
@@ -69,7 +76,7 @@ class Metrics:
 
 class Trainer:
 
-    def __init__(self, config, model, train_fn, eval_fn, optimizer,
+    def __init__(self, config, model, train_fn, eval_fn,
                  log_experiment=False):
 
         self.config = config
@@ -77,8 +84,11 @@ class Trainer:
         self.train_fn = train_fn
         self.eval_fn = eval_fn
 
-        self.optimizer = optimizer
-        self.lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer,
+        opt = get_optimizer(config.optimizer)
+        self.optimizer = opt(model.parameters(),
+                             lr=config.learning_rate)
+
+        self.lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer,
                                                                        patience=1,
                                                                        verbose=True)
         self.early_stopping = EarlyStopping(3)
