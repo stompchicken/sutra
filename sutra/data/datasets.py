@@ -9,6 +9,14 @@ from sutra.data.data import Corpus, Document
 logger = logging.getLogger(__name__)
 
 
+def get_dataset(name, vocab_size, cache=None):
+    cache = cache or DatasetCache()
+
+    return {
+        'wikitext-2': WikiText2(cache, vocab_size=vocab_size)
+    }[name]
+
+
 class DatasetCache:
     def __init__(self):
         self.cache_dir = '.data_cache'

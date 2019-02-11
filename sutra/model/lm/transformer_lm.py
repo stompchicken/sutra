@@ -24,6 +24,7 @@ class TransformerLanguageModel(nn.Module):
 
     def __init__(self,
                  vocab_size,
+                 seq_length,
                  embedding_size,
                  encoding_size,
                  num_attention_heads,
@@ -33,6 +34,7 @@ class TransformerLanguageModel(nn.Module):
         super(TransformerLanguageModel, self).__init__()
 
         self.vocab_size = vocab_size
+        self.seq_length = seq_length
         self.embedding_size = embedding_size
         self.encoding_size = encoding_size
         self.num_attention_heads = num_attention_heads
@@ -52,10 +54,15 @@ class TransformerLanguageModel(nn.Module):
         self.decoder = torch.nn.Linear(encoding_size, vocab_size).to(device)
         self.decoder.weight = self.encoder.embedding.token_embeddings.weight
 
+    @classmethod
+    def from_config(cls, config, device):
+        return cls(**config._asdict(), device=device)
+
     def config(self):
         return {
             "name": self.__class__.__module__ + '.' + self.__class__.__qualname__,
             "vocab_size": self.vocab_size,
+            "seq_length": self.seq_length,
             "embedding_size": self.embedding_size,
             "encoding_size": self.encoding_size,
             "num_attention_heads": self.num_attention_heads,

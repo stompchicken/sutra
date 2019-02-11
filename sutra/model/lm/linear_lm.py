@@ -46,6 +46,10 @@ class LinearLanguageModel(torch.nn.Module):
 
         self.dropout = nn.Dropout(dropout_prob).to(device)
 
+    @classmethod
+    def from_config(cls, config, device):
+        return cls(**config._asdict(), device=device)
+
     def config(self):
         return {
             "name": self.__class__.__module__ + '.' + self.__class__.__qualname__,

@@ -33,6 +33,7 @@ class Experiment:
 
 
 class TrainingConfig(typing.NamedTuple):
+    device: str
     epoch_length: int
     max_epochs: int
     batch_size: int

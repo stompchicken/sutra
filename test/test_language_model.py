@@ -1,49 +1,38 @@
 import torch
 
 from sutra.utils import setup_logging
-from sutra.data.iterators import LanguageModelIterator, BatchedLanguageModelIterator
-from sutra.model.lm.rnn_lm import RNNLanguageModel
-from sutra.model.lm.transformer_lm import TransformerLanguageModel
-from sutra.model.lm.linear_lm import LinearLanguageModel
-from sutra.trainer import TrainingConfig, Trainer, Stage
+from sutra.model.lm.rnn_lm import RNNLanguageModel, RNNLanguageModelConfig
+from sutra.model.lm.transformer_lm import TransformerLanguageModel, TransformerLanguageModelConfig
+from sutra.model.lm.linear_lm import LinearLanguageModel, LinearLanguageModelConfig
+from sutra.model.lm.trainer import train_language_model
+from sutra.trainer import TrainingConfig, Stage
 
 from test.utils import create_batch
 from test.asserts import assert_non_zero
 
 
-def check_single_batch(model, batched_iterator):
+def check_single_batch(model_config, batched_iterator):
 
     setup_logging()
-
-    # Hack for now
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
-    cross_entropy = torch.nn.CrossEntropyLoss()
-
-    def train_fn(batch, state):
-        hidden = model.repackage_state(state)
-        output, hidden = model(batch.text, hidden)
-        loss = model.calculate_loss(output, batch.target, cross_entropy)
-
-        return {
-            "loss": loss
-        }, hidden
 
     training_config = TrainingConfig(
         epoch_length=50,
         max_epochs=3,
         batch_size=4,
-        optimizer=None)
+        optimizer='adam',
+        learning_rate=0.01,
+        device='cpu')
 
-    trainer = Trainer(training_config, model, train_fn, train_fn, optimizer)
+    class DummyDataset:
+        train_data = list(range(20))
+        valid_data = list(range(20))
 
-    if batched_iterator:
-        train_iter = BatchedLanguageModelIterator(list(range(20)), 4, 4)
-        valid_iter = BatchedLanguageModelIterator(list(range(20)), 4, 4)
-    else:
-        train_iter = LanguageModelIterator(list(range(20)), 4, 4)
-        valid_iter = LanguageModelIterator(list(range(20)), 4, 4)
+    dataset = DummyDataset()
 
-    trainer.train(train_iter, valid_iter)
+    trainer = train_language_model(model_config,
+                                   training_config,
+                                   dataset,
+                                   batched_iterator)
 
     df = trainer.metrics.data
     print(df)
@@ -87,40 +76,47 @@ def check_gradients(model, batched_iterator):
 
 
 def test_linear_language_model():
-    model = LinearLanguageModel(
+
+    config = LinearLanguageModelConfig(
         vocab_size=24,
         seq_length=4,
         embedding_size=16,
         encoding_size=16,
-        dropout_prob=0.0,
-        device='cpu')
+        dropout_prob=0.0)
+
+    model = LinearLanguageModel.from_config(config, 'cpu')
 
     check_gradients(model, batched_iterator=False)
-    check_single_batch(model, batched_iterator=False)
+    check_single_batch(config, batched_iterator=False)
 
 
 def test_rnn_language_model():
-    model = RNNLanguageModel(
+
+    config = RNNLanguageModelConfig(
         vocab_size=24,
+        seq_length=4,
         embedding_size=16,
         encoding_size=16,
         num_layers=1,
-        dropout_prob=0.0,
-        device='cpu')
+        dropout_prob=0.0)
+
+    model = RNNLanguageModel.from_config(config, 'cpu')
 
     check_gradients(model, batched_iterator=True)
-    check_single_batch(model, batched_iterator=True)
+    check_single_batch(config, batched_iterator=True)
 
 
 def test_transformer_language_model():
-    model = TransformerLanguageModel(
+    config = TransformerLanguageModelConfig(
         vocab_size=24,
+        seq_length=4,
         embedding_size=16,
         encoding_size=16,
         num_attention_heads=1,
         num_layers=2,
-        dropout_prob=0.0,
-        device='cpu')
+        dropout_prob=0.0)
+
+    model = TransformerLanguageModel.from_config(config, 'cpu')
 
     check_gradients(model, batched_iterator=False)
-    check_single_batch(model, batched_iterator=False)
+    check_single_batch(config, batched_iterator=False)

@@ -11,9 +11,9 @@ logger = logging.getLogger(__name__)
 class RNNLanguageModelConfig(typing.NamedTuple):
     vocab_size: int
     seq_length: int
-    num_layers: int
     embedding_size: int
     encoding_size: int
+    num_layers: int
     dropout_prob: float
 
 
@@ -21,6 +21,7 @@ class RNNLanguageModel(torch.nn.Module):
 
     def __init__(self,
                  vocab_size,
+                 seq_length,
                  embedding_size,
                  encoding_size,
                  num_layers,
@@ -29,6 +30,7 @@ class RNNLanguageModel(torch.nn.Module):
         super(RNNLanguageModel, self).__init__()
 
         self.vocab_size = vocab_size
+        self.seq_length = seq_length
         self.embedding_size = embedding_size
         self.encoding_size = encoding_size
         self.num_layers = num_layers
@@ -49,10 +51,15 @@ class RNNLanguageModel(torch.nn.Module):
 
         self.init_weights()
 
+    @classmethod
+    def from_config(cls, config, device):
+        return cls(**config._asdict(), device=device)
+
     def config(self):
         return {
             "name": self.__class__.__module__ + '.' + self.__class__.__qualname__,
             "vocab_size": self.vocab_size,
+            "seq_length": self.seq_length,
             "embedding_size": self.embedding_size,
             "encoding_size": self.encoding_size,
             "num_layers": self.num_layers,
