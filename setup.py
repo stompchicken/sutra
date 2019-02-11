@@ -21,5 +21,5 @@ setup(
         'Programming Language :: Python :: 3.6',
     ],
     packages=find_packages(exclude=['sutra', 'tests']),
-    install_requires=['torch', 'numpy', 'pandas', 'requests']
+    install_requires=['torch', 'numpy', 'pandas', 'requests', 'psutil']
 )
