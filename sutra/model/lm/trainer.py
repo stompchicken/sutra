@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 def train_language_model(model_config, training_config,
-                         dataset, batched_iterator):
+                         dataset, batched_iterator, log_experiment=False):
 
     device = torch.device(training_config.device)
 
@@ -38,7 +38,7 @@ def train_language_model(model_config, training_config,
         }, hidden
 
     trainer = Trainer(training_config, model, train_fn, train_fn,
-                      log_experiment=False)
+                      log_experiment=log_experiment)
 
     iterator = BatchedLanguageModelIterator if batched_iterator else LanguageModelIterator
     train_iter = iterator(dataset.train_data,
