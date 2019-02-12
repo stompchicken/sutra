@@ -1,6 +1,5 @@
 import torch
 
-from sutra.utils import setup_logging
 from sutra.model.lm.rnn_lm import RNNLanguageModel, RNNLanguageModelConfig
 from sutra.model.lm.transformer_lm import TransformerLanguageModel, TransformerLanguageModelConfig
 from sutra.model.lm.linear_lm import LinearLanguageModel, LinearLanguageModelConfig
@@ -11,15 +10,15 @@ from test.utils import create_batch
 from test.asserts import assert_non_zero
 
 
-def check_single_batch(model_config, batched_iterator):
-
-    setup_logging()
+def check_can_overfit(model_config, batched_iterator):
+    # Check the model can make loss small on very small data
 
     training_config = TrainingConfig(
-        epoch_length=50,
-        max_epochs=3,
+        epoch_length=100,
+        max_epochs=1,
         batch_size=4,
         optimizer='adam',
+        # High learning rate as tests should be fast
         learning_rate=0.01,
         device='cpu')
 
@@ -35,7 +34,6 @@ def check_single_batch(model_config, batched_iterator):
                                    batched_iterator)
 
     df = trainer.metrics.data
-    print(df)
     df = df[df.stage == Stage.VALIDATION]
     df = df[df.epoch == training_config.max_epochs]
     loss = sum(df.loss) / len(df)
@@ -44,6 +42,10 @@ def check_single_batch(model_config, batched_iterator):
 
 
 def check_gradients(model, batched_iterator):
+
+    # Run over a single batch and check loss and gradients aren't
+    # totally wrong
+
     batch_size = 2
     if batched_iterator:
         batch = create_batch([[0, 10],
@@ -64,6 +66,8 @@ def check_gradients(model, batched_iterator):
     state = model.init_state(batch_size)
     output, state = model(batch.data, state)
     cross_entropy = torch.nn.CrossEntropyLoss()
+
+    # loss is non-zero
     loss = model.calculate_loss(output, batch.target, cross_entropy)
     assert loss != 0
 
@@ -87,7 +91,7 @@ def test_linear_language_model():
     model = LinearLanguageModel.from_config(config, 'cpu')
 
     check_gradients(model, batched_iterator=False)
-    check_single_batch(config, batched_iterator=False)
+    check_can_overfit(config, batched_iterator=False)
 
 
 def test_rnn_language_model():
@@ -103,7 +107,7 @@ def test_rnn_language_model():
     model = RNNLanguageModel.from_config(config, 'cpu')
 
     check_gradients(model, batched_iterator=True)
-    check_single_batch(config, batched_iterator=True)
+    check_can_overfit(config, batched_iterator=True)
 
 
 def test_transformer_language_model():
@@ -119,4 +123,4 @@ def test_transformer_language_model():
     model = TransformerLanguageModel.from_config(config, 'cpu')
 
     check_gradients(model, batched_iterator=False)
-    check_single_batch(config, batched_iterator=False)
+    check_can_overfit(config, batched_iterator=False)

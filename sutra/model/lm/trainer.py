@@ -30,7 +30,7 @@ def train_language_model(model_config, training_config,
 
     def train_fn(batch, state):
         hidden = model.repackage_state(state)
-        output, hidden = model(batch.text.to(device), hidden)
+        output, hidden = model(batch.data.to(device), hidden)
         loss = model.calculate_loss(output, batch.target.to(device), cross_entropy)
 
         return {

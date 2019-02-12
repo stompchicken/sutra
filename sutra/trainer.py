@@ -90,9 +90,9 @@ class Trainer:
                              lr=config.learning_rate)
 
         self.lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(self.optimizer,
-                                                                       patience=1,
+                                                                       patience=2,
                                                                        verbose=True)
-        self.early_stopping = EarlyStopping(3)
+        self.early_stopping = EarlyStopping(5)
 
         self.log_experiment = log_experiment
         if log_experiment:
@@ -138,6 +138,16 @@ class Trainer:
                 logging.warning(f"No data for training epoch {current_epoch}")
 
     def print_eval_metrics(self, epoch):
+        df = self.metrics.data
+        df = df[df.epoch == epoch]
+        df = df[df.stage == Stage.TRAINING]
+        if len(df) > 0:
+            avg_loss = sum(df.loss) / len(df)
+            avg_ppl = sum(df.perplexity) / len(df)
+            logging.info(f"[train] epoch={epoch}, loss={avg_loss:.4f}, ppl={avg_ppl:.4f}") # noqa
+        else:
+            logging.warning(f"No data for evaluation epoch {epoch}")
+
         df = self.metrics.data
         df = df[df.epoch == epoch]
         df = df[df.stage == Stage.VALIDATION]

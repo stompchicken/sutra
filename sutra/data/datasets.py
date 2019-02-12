@@ -10,6 +10,8 @@ logger = logging.getLogger(__name__)
 
 
 def get_dataset(name, vocab_size, cache=None):
+    """Utility method to get a dataset by name lookup"""
+
     cache = cache or DatasetCache()
 
     return {
@@ -29,7 +31,7 @@ class WikiText2:
     """Wikitext-2 language modelling dataset"""
 
     name = 'wikitext-2'
-    url = 'https://s3.amazonaws.com/research.metamind.io/wikitext/wikitext-2-v1.zip' # noqa
+    url = 'https://s3.amazonaws.com/research.metamind.io/wikitext/wikitext-2-v1.zip'
 
     @classmethod
     def download(cls, cache):

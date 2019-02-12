@@ -20,14 +20,15 @@ def main():
         model_config = TransformerLanguageModelConfig(
             vocab_size=35000,
             seq_length=16,
-            num_attention_heads=2,
-            num_layers=2,
-            embedding_size=256,
-            encoding_size=256,
+            num_attention_heads=4,
+            num_layers=4,
+            embedding_size=128,
+            encoding_size=128,
             dropout_prob=0.25)
     elif model_type == 'rnn':
         model_config = RNNLanguageModelConfig(
             vocab_size=35000,
+            seq_length=16,
             embedding_size=128,
             encoding_size=128,
             dropout_prob=0.25)

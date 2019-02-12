@@ -28,25 +28,13 @@ def test_scaled_dot_attention_potentials():
     query = torch.rand(dim)
     key = torch.rand(dim)
     value = torch.rand(dim)
-    attn, potential = scaled_dot_attention(query, key, value, NO_DROPOUT)
+    output, potential = scaled_dot_attention(query, key, value, NO_DROPOUT)
 
-    # Potentials are multiplied by value to get attention
-    assert_eq(attn, torch.matmul(potential, value))
+    # Potentials are multiplied by value to get output
+    assert_eq(output, torch.matmul(potential, value))
 
-    # Attention distribution columns sum to one
+    # Attention potential distribution columns sum to one
     assert_eq(torch.sum(potential, dim=-1), torch.ones((5, 5, 5)))
-
-
-# def test_scaled_dot_attention_identity():
-#     query = torch.eye(4)
-#     key = torch.eye(4)
-#     value = torch.eye(4)
-
-#     attn, potential = scaled_dot_attention(query, key, value, NO_DROPOUT)
-
-#     expected = torch.nn.functional.softmax(0.5 * torch.eye(4), dim=1)
-#     assert_eq(potential, expected)
-#     assert_eq(attn, expected)
 
 
 def test_scaled_dot_attention():
@@ -55,12 +43,15 @@ def test_scaled_dot_attention():
     key = torch.rand(dim)
     value = torch.rand(dim)
 
-    attn, potential = scaled_dot_attention(query, key, value, NO_DROPOUT)
-    assert attn.size() == potential.size() == dim
+    output, potential = scaled_dot_attention(query, key, value, NO_DROPOUT)
+
+    # Output, potentials and input should all be the same size
+    assert output.size() == potential.size() == dim
 
 
 def test_multi_headed_attention():
 
+    # Plug in simple attention function
     def attn_fn(query, key, value, dropout_fn=None):
         return query + key + value, query
 
@@ -81,11 +72,15 @@ def test_multi_headed_attention():
     encodings = multi_head_attn.forward(query, key, value)
 
     assert encodings.size() == dim
-    assert_eq(encodings,
-              multi_head_attn.output_projection(
-                  multi_head_attn.input_projections[0](query) +
-                  multi_head_attn.input_projections[1](key) +
-                  multi_head_attn.input_projections[2](value)))
+
+    # Apply input projections, attention and output projection
+    query_proj = multi_head_attn.input_projections[0](query)
+    key_proj = multi_head_attn.input_projections[1](key)
+    value_proj = multi_head_attn.input_projections[2](value)
+    expected, _ = attn_fn(query_proj, key_proj, value_proj)
+    expected = multi_head_attn.output_projection(expected)
+
+    assert_eq(encodings, expected)
 
 
 def test_encoder():

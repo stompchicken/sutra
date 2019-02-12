@@ -1,4 +1,5 @@
 import logging
+import math
 
 import torch
 import numpy as np
@@ -9,17 +10,23 @@ logger = logging.getLogger(__name__)
 
 
 def split_sequence_data(data, batch_size, pad_to_batch_size=False):
-    """Split sequence data into a tensor with batch_size columns"""
+    """Split sequence data into a tensor with batch_size columns
+
+    Args:
+        pad_to_batch_size: Adds padding to the data to make it divide
+        evenly by batch size, making sure no data is lost. This option
+        is here for torchtext compatibility.
+    """
 
     data = np.array(data)
 
     if pad_to_batch_size:
-        stride = (len(data) // batch_size) + 1
+        stride = math.ceil(len(data) / batch_size)
         pad_size = (stride * batch_size) - len(data)
-        # TODO: Lookup padding index rather than use ones
+        # TODO: Lookup padding index rather than use ones (torchtext default)
         data = np.append(data, np.ones(pad_size, dtype=np.int64))
     else:
-        stride = len(data) // batch_size
+        stride = math.floor(len(data) / batch_size)
 
     column_indices = []
     for i in range(batch_size):

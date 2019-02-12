@@ -1,16 +1,23 @@
 import logging
 import collections
 import typing
-import numpy as np
+import torch
 
 logger = logging.getLogger(__name__)
 
+UNKNOWN_TERM = '<unk>'
+
 
 class VocabBuilder:
+    """Utility class for building vocabularies
+
+    Stores terms and counts and returns a list of terms ranked by
+    count, with special handling for certain reserved symbols.
+    """
 
     def __init__(self, specials=None):
         self.vocab = collections.defaultdict(int)
-        self.specials = specials or ['<unk>']
+        self.specials = [UNKNOWN_TERM] if specials is None else specials
 
     def add_term(self, term, count=1):
         if term not in self.specials:
@@ -19,13 +26,25 @@ class VocabBuilder:
     def __len__(self):
         return len(self.specials) + len(self.vocab)
 
-    def get_terms(self, size):
+    def get_terms(self, size=None):
+        """Return a ranked list of terms
+
+        The list always contains the special terms first (in the order
+        they were given to the constructor) and after that the added
+        terms ranked by count
+
+        Args:
+            size: the length of the ranked list
+
+        """
+        size = len(self) if size is None else size
         sorted_terms = sorted([(-f, t) for (t, f) in self.vocab.items()])
         num_terms = min(len(sorted_terms), size - len(self.specials))
         return self.specials + [x[1] for x in sorted_terms[:num_terms]]
 
 
 class Vocab:
+    """A mapping of terms to indexes"""
 
     def __init__(self):
         self.terms = []
@@ -50,8 +69,9 @@ class Vocab:
 
     @staticmethod
     def from_vocab_builder(vocab_builder, size=None):
+        """Constuct a vocabulary from a VocabBuilder"""
+
         vocab = Vocab()
-        size = size or len(vocab_builder.vocab)
 
         for term in vocab_builder.get_terms(size):
             vocab.add_term(term)
@@ -63,10 +83,15 @@ class Document(typing.NamedTuple):
     tokens: typing.List[str]
 
 
-class Corpus(object):
+class Corpus:
+    """A collection of documents
+
+    The main purpose of a corpus is to contain documenta and generate
+    a vocabulary.
+    """
 
     def __init__(self, documents=None):
-        self.documents = documents or []
+        self.documents = documents if documents is not None else []
 
     def __len__(self):
         return len(self.documents)
@@ -83,16 +108,14 @@ class Corpus(object):
         documents = len(self.documents)
         tokens = sum(len(document.tokens) for document in self.documents)
         unique_tokens = len(self.vocab_builder)
-        logger.info(f"Building vocab from: {documents} documents, {tokens} tokens, {unique_tokens} unique tokens") # noqa
+        logger.info(f"Building vocab from: {documents} documents, {tokens} tokens, {unique_tokens} unique tokens")
+
         vocab = Vocab.from_vocab_builder(self.vocab_builder, vocab_size)
         logger.info(f"Created vocab with: {len(vocab)} tokens")
+
         return vocab
 
 
 class Batch(typing.NamedTuple):
-    data: np.array
-    target: np.array
-
-    @property
-    def text(self):
-        return self.data
+    data: torch.Tensor
+    target: torch.Tensor

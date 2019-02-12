@@ -1,11 +1,41 @@
-import sutra.data.data as data
+from sutra.data.data import Batch
 import sutra.data.iterators as iterators
 
 from test.asserts import assert_eq
 
 
+def test_split_sequence_data():
+
+    data = list(range(27))
+
+    # TODO: Assert on value rather than shape
+    assert iterators.split_sequence_data(data, 1).size() == (27, 1)
+    assert iterators.split_sequence_data(data, 2).size() == (13, 2)
+    assert iterators.split_sequence_data(data, 3).size() == (9, 3)
+    assert iterators.split_sequence_data(data, 4).size() == (6, 4)
+    assert iterators.split_sequence_data(data, 5).size() == (5, 5)
+
+
+def test_split_sequence_data_padded():
+
+    data = list(range(27))
+
+    # TODO: Assert on value rather than shape
+    assert iterators.split_sequence_data(data, 1, True).size() == (27, 1)
+    assert iterators.split_sequence_data(data, 2, True).size() == (14, 2)
+    assert iterators.split_sequence_data(data, 3, True).size() == (9, 3)
+    assert iterators.split_sequence_data(data, 4, True).size() == (7, 4)
+    assert iterators.split_sequence_data(data, 5, True).size() == (6, 5)
+
+    # 27 will be padded out to 30 => 6 x 5
+    padded = iterators.split_sequence_data(data, 5, True)
+    assert padded[3, 4] == 1
+    assert padded[4, 4] == 1
+    assert padded[5, 4] == 1
+
+
 def assert_lm_iterator(iterator, batch_data, batch_target):
-    expected = [data.Batch(d, t) for d, t in zip(batch_data, batch_target)]
+    expected = [Batch(d, t) for d, t in zip(batch_data, batch_target)]
     batches = list(iterator)
 
     assert len(batches) == len(expected)
